@@ -12,10 +12,28 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
+// CORS Configuration
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    process.env.FRONTEND_URL // Add your Vercel URL here via env variable
+].filter(Boolean);
+
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173'],
-    methods: ['GET', 'POST'],
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.some(allowed => origin.startsWith(allowed) || allowed === origin)) {
+            return callback(null, true);
+        }
+        // In production, also allow any vercel.app subdomain
+        if (origin.includes('.vercel.app')) {
+            return callback(null, true);
+        }
+        callback(new Error('Not allowed by CORS'));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
     credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
