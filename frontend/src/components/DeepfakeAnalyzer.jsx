@@ -60,6 +60,8 @@ function DeepfakeAnalyzer() {
         reader.readAsDataURL(selectedFile);
     };
 
+    const API_URL = '/api';
+
     const analyzeMedia = async () => {
         if (!file) return;
 
@@ -70,7 +72,7 @@ function DeepfakeAnalyzer() {
             const base64 = preview.split(',')[1];
             const isVideo = file.type.startsWith('video/');
 
-            const response = await fetch('/api/analyze/deepfake', {
+            const response = await fetch(`${API_URL}/analyze/deepfake`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
