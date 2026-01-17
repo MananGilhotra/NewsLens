@@ -17,23 +17,37 @@ const allowedOrigins = [
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
-    process.env.FRONTEND_URL // Add your Vercel URL here via env variable
+    'https://news-lens-fawn.vercel.app',
+    'https://news-lens.vercel.app',
+    'https://newslens.vercel.app',
+    process.env.FRONTEND_URL
 ].filter(Boolean);
 
 app.use(cors({
     origin: function (origin, callback) {
         // Allow requests with no origin (mobile apps, curl, etc)
         if (!origin) return callback(null, true);
-        if (allowedOrigins.some(allowed => origin.startsWith(allowed) || allowed === origin)) {
+
+        // Check explicit allowed origins
+        if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
             return callback(null, true);
         }
-        // In production, also allow any vercel.app subdomain
-        if (origin.includes('.vercel.app')) {
+
+        // Allow any vercel.app subdomain (including preview deployments)
+        if (origin.includes('vercel.app')) {
             return callback(null, true);
         }
+
+        // Allow any onrender.com subdomain
+        if (origin.includes('onrender.com')) {
+            return callback(null, true);
+        }
+
+        console.log('CORS blocked origin:', origin);
         callback(new Error('Not allowed by CORS'));
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 app.use(express.json({ limit: '50mb' }));
