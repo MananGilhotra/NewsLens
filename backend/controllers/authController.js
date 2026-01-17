@@ -68,7 +68,8 @@ const register = async (req, res) => {
         console.error('[Auth] Register error:', error);
         res.status(500).json({
             success: false,
-            error: 'Registration failed'
+            error: 'Registration failed',
+            details: process.env.NODE_ENV === 'production' ? undefined : error.message
         });
     }
 };

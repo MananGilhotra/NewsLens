@@ -93,11 +93,22 @@ app.use((err, req, res, next) => {
 // MongoDB connection
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/verityai';
-        await mongoose.connect(mongoURI);
+        const mongoURI = process.env.MONGODB_URI;
+        if (!mongoURI) {
+            if (process.env.NODE_ENV === 'production') {
+                console.error('❌ MONGODB_URI environment variable is required in production!');
+                process.exit(1);
+            }
+            console.log('⚠️  No MONGODB_URI set, using localhost for development');
+        }
+        await mongoose.connect(mongoURI || 'mongodb://localhost:27017/verityai');
         console.log('✅ MongoDB connected successfully');
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
+        if (process.env.NODE_ENV === 'production') {
+            console.error('🔥 Cannot start server without database in production');
+            process.exit(1);
+        }
         console.log('⚠️  Server will continue without database logging');
     }
 };
