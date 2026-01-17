@@ -12,40 +12,9 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// CORS Configuration
-const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:5173',
-    'https://news-lens-fawn.vercel.app',
-    'https://news-lens.vercel.app',
-    'https://newslens.vercel.app',
-    process.env.FRONTEND_URL
-].filter(Boolean);
-
+// CORS Configuration - Allow all origins
 app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc)
-        if (!origin) return callback(null, true);
-
-        // Check explicit allowed origins
-        if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
-            return callback(null, true);
-        }
-
-        // Allow any vercel.app subdomain (including preview deployments)
-        if (origin.includes('vercel.app')) {
-            return callback(null, true);
-        }
-
-        // Allow any onrender.com subdomain
-        if (origin.includes('onrender.com')) {
-            return callback(null, true);
-        }
-
-        console.log('CORS blocked origin:', origin);
-        callback(new Error('Not allowed by CORS'));
-    },
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
