@@ -1,0 +1,15 @@
+{
+    "name": "newslens",
+    "version": "1.0.0",
+    "description": "NewsLens - AI Fake News & Content Verification Platform",
+    "scripts": {
+        "start": "cd backend && npm start",
+        "build": "npm install && cd frontend && npm install && npm run build && cd ../backend && npm install"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}

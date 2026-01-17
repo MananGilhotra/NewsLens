@@ -45,6 +45,16 @@ app.use('/api/analyze', analyzeRoute);
 app.use('/api/news', newsRoute);
 app.use('/api/auth', authRoute);
 
+// Serve static files in production
+if (process.env.NODE_ENV === 'production') {
+    const path = require('path');
+    app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+    app.get('*', (req, res) => {
+        res.sendFile(path.resolve(__dirname, '../frontend/dist', 'index.html'));
+    });
+}
+
 // 404 handler
 app.use((req, res) => {
     res.status(404).json({
