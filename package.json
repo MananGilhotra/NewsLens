@@ -4,7 +4,7 @@
     "description": "NewsLens - AI Fake News & Content Verification Platform",
     "scripts": {
         "start": "cd backend && npm start",
-        "build": "npm install && cd frontend && npm install && npm run build && cd ../backend && npm install"
+        "build": "npm install && cd frontend && npm install --include=dev && npm run build && cd ../backend && npm install"
     },
     "keywords": [],
     "author": "",
