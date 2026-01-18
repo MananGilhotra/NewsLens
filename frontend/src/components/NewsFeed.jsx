@@ -66,7 +66,12 @@ const NewsCard = ({ article }) => {
                         src={article.urlToImage}
                         alt={article.title}
                         className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-300"
-                        onError={(e) => e.target.style.display = 'none'}
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.parentElement.style.backgroundColor = '#1a1a1a'; // Fallback color
+                        }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-cyber-darker via-transparent to-transparent" />
                 </div>
