@@ -177,11 +177,11 @@ const summarizeArticle = async (req, res) => {
             });
         }
 
-        // Check if OpenRouter API key is configured
-        const openRouterKey = process.env.OPENROUTER_API_KEY;
+        // Check if SambaNova API key is configured
+        const apiKey = process.env.SAMBANOVA_API_KEY;
 
-        if (!openRouterKey) {
-            console.log('[Intel Feed] No OPENROUTER_API_KEY configured');
+        if (!apiKey) {
+            console.log('[Intel Feed] No SAMBANOVA_API_KEY configured');
             return res.json({
                 success: true,
                 data: {
@@ -198,25 +198,32 @@ Format: Return ONLY 3 lines starting with "•" - no other text.
 Article Title: ${title}
 Article Content: ${content || 'Content not available - summarize based on title'}`;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetch('https://api.sambanova.ai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${openRouterKey}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
-                'X-Title': 'NewsLens Intel Feed'
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'google/gemini-2.0-flash-001',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.3,
+                model: 'Meta-Llama-3.1-8B-Instruct',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a helpful assistant that summarizes news articles.'
+                    },
+                    {
+                        role: 'user',
+                        content: prompt
+                    }
+                ],
+                temperature: 0.1,
                 max_tokens: 300
             })
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('[Intel Feed] OpenRouter Error:', response.status, errorData);
+            const errorText = await response.text();
+            console.error('[Intel Feed] SambaNova API Error:', response.status, errorText);
 
             // Return fallback instead of throwing error
             return res.json({
