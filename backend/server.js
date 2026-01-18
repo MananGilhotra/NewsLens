@@ -74,20 +74,36 @@ app.use((err, req, res, next) => {
 });
 
 // MongoDB connection
+// MongoDB connection
 const connectDB = async () => {
     try {
-        const mongoURI = process.env.MONGODB_URI;
+        let mongoURI = process.env.MONGODB_URI;
+
         if (!mongoURI) {
             if (process.env.NODE_ENV === 'production') {
                 console.error('❌ MONGODB_URI environment variable is required in production!');
                 process.exit(1);
             }
             console.log('⚠️  No MONGODB_URI set, using localhost for development');
+            mongoURI = 'mongodb://localhost:27017/verityai';
         }
-        await mongoose.connect(mongoURI || 'mongodb://localhost:27017/verityai');
+
+        // Sanitize URI (remove whitespace/quotes if present)
+        mongoURI = mongoURI.trim().replace(/^["']|["']$/g, '');
+
+        // Log connection attempt (masking password)
+        const maskedURI = mongoURI.replace(/:([^:@]+)@/, ':****@');
+        console.log(`[db] Attempting to connect to: ${maskedURI}`);
+
+        await mongoose.connect(mongoURI, {
+            serverSelectionTimeoutMS: 5000 // Fail fast if IP is blocked (default is 30s)
+        });
+
         console.log('✅ MongoDB connected successfully');
     } catch (error) {
         console.error('❌ MongoDB connection error:', error.message);
+        console.error('💡 TIP: If you see "server selection error", check your MongoDB Atlas Network Access whitelist. You must allow 0.0.0.0/0');
+
         if (process.env.NODE_ENV === 'production') {
             console.error('🔥 Cannot start server without database in production');
             process.exit(1);
