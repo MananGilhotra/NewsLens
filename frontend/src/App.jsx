@@ -17,7 +17,7 @@ import LandingPage from './components/LandingPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = (import.meta.env.VITE_API_URL || '') + '/api';
 
 function ProtectedRoute({ children }) {
     const { isAuthenticated, loading } = useAuth();
