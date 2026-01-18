@@ -177,8 +177,7 @@ const summarizeArticle = async (req, res) => {
             });
         }
 
-        // Check if API key is configured (prefer Gemini over OpenRouter)
-        const geminiKey = process.env.GEMINI_API_KEY;
+        // Check if OpenRouter API key is configured
         const openRouterKey = process.env.OPENROUTER_API_KEY;
 
         if (!openRouterKey) {
