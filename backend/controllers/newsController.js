@@ -177,6 +177,18 @@ const summarizeArticle = async (req, res) => {
             });
         }
 
+        // Check if API key is configured
+        if (!process.env.OPENROUTER_API_KEY) {
+            console.log('[Intel Feed] No OPENROUTER_API_KEY configured, returning fallback');
+            return res.json({
+                success: true,
+                data: {
+                    summary: ['• Summary unavailable', '• API key not configured', '• Check connection'],
+                    analyzedAt: new Date().toISOString()
+                }
+            });
+        }
+
         const prompt = `You are an intelligence analyst. Summarize this news article in exactly 3 bullet points.
 Each bullet should be concise (max 15 words) and capture a key insight.
 Format: Return ONLY 3 lines starting with "•" - no other text.
@@ -189,8 +201,8 @@ Article Content: ${content || 'Content not available - summarize based on title'
             headers: {
                 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:5173',
-                'X-Title': 'VerityAI Intel Feed'
+                'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+                'X-Title': 'NewsLens Intel Feed'
             },
             body: JSON.stringify({
                 model: 'google/gemini-2.0-flash-001',
@@ -206,9 +218,17 @@ Article Content: ${content || 'Content not available - summarize based on title'
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Intel Feed] OpenRouter Error:', response.status, errorText);
-            throw new Error(`OpenRouter API error: ${response.status}`);
+            const errorData = await response.json().catch(() => ({}));
+            console.error('[Intel Feed] OpenRouter Error:', response.status, errorData);
+
+            // Return fallback instead of throwing error
+            return res.json({
+                success: true,
+                data: {
+                    summary: ['• Summary unavailable', '• Try again later', '• Check original source'],
+                    analyzedAt: new Date().toISOString()
+                }
+            });
         }
 
         const data = await response.json();
@@ -231,9 +251,13 @@ Article Content: ${content || 'Content not available - summarize based on title'
 
     } catch (error) {
         console.error('[Intel Feed] Summarize Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to generate summary'
+        // Return fallback response instead of 500 error
+        return res.json({
+            success: true,
+            data: {
+                summary: ['• Summary unavailable', '• Try again later', '• Check connection'],
+                analyzedAt: new Date().toISOString()
+            }
         });
     }
 };
