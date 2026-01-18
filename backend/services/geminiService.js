@@ -40,16 +40,25 @@ Score Guidelines:
  */
 async function analyzeContent(content) {
     try {
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const apiKey = process.env.SAMBANOVA_API_KEY;
+
+        if (!apiKey) {
+            console.log('[SambaNova] No API key configured');
+            return {
+                score: 50,
+                verdict: 'Inconclusive',
+                reasoning: 'Analysis unavailable: AI service not configured.'
+            };
+        }
+
+        const response = await fetch('https://api.sambanova.ai/v1/chat/completions', {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:5173',
-                'X-Title': 'VerityAI'
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                model: 'google/gemini-2.0-flash-001',
+                model: 'Meta-Llama-3.1-8B-Instruct',
                 messages: [
                     {
                         role: 'system',
@@ -60,15 +69,20 @@ async function analyzeContent(content) {
                         content: `CONTENT TO ANALYZE:\n"""\n${content}\n"""\n\nAnalyze the above content and return ONLY the JSON response:`
                     }
                 ],
-                temperature: 0.3,
+                temperature: 0.1,
                 max_tokens: 500
             })
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('[OpenRouter] API Error:', response.status, errorText);
-            throw new Error(`OpenRouter API error: ${response.status}`);
+            console.error('[SambaNova] API Error:', response.status, errorText);
+            // Return fallback instead of throwing
+            return {
+                score: 50,
+                verdict: 'Inconclusive',
+                reasoning: 'Analysis unavailable due to service error. Please try again later.'
+            };
         }
 
         const data = await response.json();
@@ -105,18 +119,14 @@ async function analyzeContent(content) {
         return analysisResult;
 
     } catch (error) {
-        console.error('[OpenRouter] Error:', error);
+        console.error('[SambaNova] Error:', error);
 
-        // Return a fallback response if parsing fails
-        if (error instanceof SyntaxError) {
-            return {
-                score: 50,
-                verdict: 'Inconclusive',
-                reasoning: 'Unable to complete analysis. Please try again with different content.'
-            };
-        }
-
-        throw error;
+        // Return a fallback response if parsing fails or other errors
+        return {
+            score: 50,
+            verdict: 'Inconclusive',
+            reasoning: 'Unable to complete analysis. Please try again with different content.'
+        };
     }
 }
 
