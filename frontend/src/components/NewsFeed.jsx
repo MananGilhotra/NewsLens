@@ -67,7 +67,6 @@ const NewsCard = ({ article }) => {
                         alt={article.title}
                         className="w-full h-full object-cover opacity-70 group-hover:opacity-100 transition-opacity duration-300"
                         referrerPolicy="no-referrer"
-                        crossOrigin="anonymous"
                         onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.parentElement.style.backgroundColor = '#1a1a1a'; // Fallback color
