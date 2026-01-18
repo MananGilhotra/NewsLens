@@ -177,9 +177,12 @@ const summarizeArticle = async (req, res) => {
             });
         }
 
-        // Check if API key is configured
-        if (!process.env.OPENROUTER_API_KEY) {
-            console.log('[Intel Feed] No OPENROUTER_API_KEY configured, returning fallback');
+        // Check if API key is configured (prefer Gemini over OpenRouter)
+        const geminiKey = process.env.GEMINI_API_KEY;
+        const openRouterKey = process.env.OPENROUTER_API_KEY;
+
+        if (!geminiKey && !openRouterKey) {
+            console.log('[Intel Feed] No API key configured, returning fallback');
             return res.json({
                 success: true,
                 data: {
@@ -196,32 +199,61 @@ Format: Return ONLY 3 lines starting with "•" - no other text.
 Article Title: ${title}
 Article Content: ${content || 'Content not available - summarize based on title'}`;
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
-                'X-Title': 'NewsLens Intel Feed'
-            },
-            body: JSON.stringify({
-                model: 'google/gemini-2.0-flash-001',
-                messages: [
-                    {
-                        role: 'user',
-                        content: prompt
-                    }
-                ],
-                temperature: 0.3,
-                max_tokens: 300
-            })
-        });
+        let response;
+        let summary = '';
 
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('[Intel Feed] OpenRouter Error:', response.status, errorData);
+        // Try Google Gemini API first (more reliable)
+        if (geminiKey) {
+            try {
+                response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: 0.3, maxOutputTokens: 300 }
+                    })
+                });
 
-            // Return fallback instead of throwing error
+                if (response.ok) {
+                    const data = await response.json();
+                    summary = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+                } else {
+                    console.log('[Intel Feed] Gemini API failed, trying OpenRouter...');
+                }
+            } catch (err) {
+                console.log('[Intel Feed] Gemini error:', err.message);
+            }
+        }
+
+        // Fallback to OpenRouter if Gemini fails or not configured
+        if (!summary && openRouterKey) {
+            response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${openRouterKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': process.env.FRONTEND_URL || 'http://localhost:5173',
+                    'X-Title': 'NewsLens Intel Feed'
+                },
+                body: JSON.stringify({
+                    model: 'google/gemini-2.0-flash-001',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: 0.3,
+                    max_tokens: 300
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                summary = data.choices[0]?.message?.content?.trim() || '';
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('[Intel Feed] OpenRouter Error:', response.status, errorData);
+            }
+        }
+
+        // If still no summary, return fallback
+        if (!summary) {
             return res.json({
                 success: true,
                 data: {
@@ -231,10 +263,6 @@ Article Content: ${content || 'Content not available - summarize based on title'
             });
         }
 
-        const data = await response.json();
-        const summary = data.choices[0]?.message?.content?.trim() || '';
-
-        // Parse bullets
         const bullets = summary
             .split('\n')
             .filter(line => line.trim().startsWith('•'))
