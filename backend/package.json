@@ -1,7 +1,7 @@
 {
-  "name": "verityai-backend",
+  "name": "newslens-backend",
   "version": "1.0.0",
-  "description": "VerityAI - AI Fake News & Content Verification Backend",
+  "description": "NewsLens - AI Fake News & Content Verification Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -105,8 +105,8 @@ function Dashboard() {
                     <div className="mb-4 flex justify-center">
                         <div className="relative cursor-pointer" onClick={() => handlePageChange('feed')}>
                             <h1 className="font-display text-3xl md:text-5xl lg:text-6xl font-black tracking-wider">
-                                <span className="text-gradient-cyan">VERITY</span>
-                                <span className="text-white">AI</span>
+                                <span className="text-gradient-cyan">News</span>
+                                <span className="text-white">Lens</span>
                             </h1>
                             <div className="absolute -bottom-2 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-glow-cyan to-transparent" />
                         </div>

@@ -59,8 +59,8 @@ function LoginPage() {
                 {/* Logo */}
                 <Link to="/" className="block text-center mb-8">
                     <h1 className="font-display text-3xl font-bold">
-                        <span className="text-gradient-cyan">VERITY</span>
-                        <span className="text-white">AI</span>
+                        <span className="text-gradient-cyan">News</span>
+                        <span className="text-white">Lens</span>
                     </h1>
                 </Link>
 

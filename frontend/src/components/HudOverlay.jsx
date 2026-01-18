@@ -51,7 +51,7 @@ const HudOverlay = () => {
             <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-r from-cyber-darker via-cyber-dark to-cyber-darker border-t border-glow-cyan/20">
                 <div className="flex items-center justify-center h-full text-xs font-mono text-text-muted">
                     <span className="mr-4">●</span>
-                    VERITYAI v1.0.0 | NEURAL ENGINE |
+                    NEWSLENS v1.0.0 | NEURAL ENGINE |
                     <span className="text-glow-cyan ml-2">GEMINI CORE</span>
                 </div>
             </div>

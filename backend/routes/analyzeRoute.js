@@ -59,7 +59,7 @@ router.post('/', async (req, res) => {
         }
 
         // Perform analysis using Gemini
-        console.log(`[VerityAI] Analyzing ${inputType}: ${content.substring(0, 50)}...`);
+        console.log(`[NewsLens] Analyzing ${inputType}: ${content.substring(0, 50)}...`);
         const result = await analyzeContent(content);
 
         // Log the analysis to MongoDB
@@ -72,10 +72,10 @@ router.post('/', async (req, res) => {
                 reasoning: result.reasoning
             });
             await log.save();
-            console.log(`[VerityAI] Analysis logged with ID: ${log._id}`);
+            console.log(`[NewsLens] Analysis logged with ID: ${log._id}`);
         } catch (dbError) {
             // Don't fail the request if logging fails
-            console.error('[VerityAI] Failed to log analysis:', dbError.message);
+            console.error('[NewsLens] Failed to log analysis:', dbError.message);
         }
 
         // Return the analysis result
@@ -90,7 +90,7 @@ router.post('/', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[VerityAI] Analysis error:', error);
+        console.error('[NewsLens] Analysis error:', error);
 
         // Handle specific API errors
         if (error.message?.includes('API_KEY')) {
@@ -127,7 +127,7 @@ router.get('/history', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('[VerityAI] History fetch error:', error);
+        console.error('[NewsLens] History fetch error:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to fetch history'
@@ -151,7 +151,7 @@ router.post('/deepfake', async (req, res) => {
             });
         }
 
-        console.log(`[VerityAI] Analyzing deepfake: ${fileName} (${mediaType})`);
+        console.log(`[NewsLens] Analyzing deepfake: ${fileName} (${mediaType})`);
 
         // Call OpenRouter for deepfake analysis
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -160,7 +160,7 @@ router.post('/deepfake', async (req, res) => {
                 'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 'Content-Type': 'application/json',
                 'HTTP-Referer': 'http://localhost:5173',
-                'X-Title': 'VerityAI Deepfake Detector'
+                'X-Title': 'NewsLens Deepfake Detector'
             },
             body: JSON.stringify({
                 model: 'google/gemini-2.0-flash-001',

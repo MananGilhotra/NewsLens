@@ -1,5 +1,5 @@
 /**
- * VerityAI Backend Server
+ * NewsLens Backend Server
  * 
  * Express server for the AI Fake News & Content Verification Platform
  */
@@ -32,7 +32,7 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'online',
-        service: 'VerityAI',
+        service: 'NewsLens',
         version: '1.0.0',
         timestamp: new Date().toISOString()
     });
@@ -74,7 +74,7 @@ app.use((err, req, res, next) => {
 });
 
 // MongoDB connection
-// MongoDB connection
+
 const connectDB = async () => {
     try {
         let mongoURI = process.env.MONGODB_URI;
@@ -85,7 +85,7 @@ const connectDB = async () => {
                 process.exit(1);
             }
             console.log('⚠️  No MONGODB_URI set, using localhost for development');
-            mongoURI = 'mongodb://localhost:27017/verityai';
+            mongoURI = 'mongodb://localhost:27017/newslens';
         }
 
         // Sanitize URI (remove whitespace/quotes if present)
