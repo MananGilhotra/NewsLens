@@ -164,9 +164,47 @@ const fetchNews = async (req, res) => {
 };
 
 /**
- * Summarize article using OpenRouter AI
+ * Summarize article using OpenRouter AI or fallback
  */
 const summarizeArticle = async (req, res) => {
+    const generateFallbackSummary = (titleText, contentText) => {
+        let textToSummarize = contentText || titleText || '';
+        // Basic cleanup
+        textToSummarize = textToSummarize.replace(/<[^>]*>?/gm, '');
+        
+        // Split by sentences
+        const sentences = textToSummarize.match(/[^.!?]+[.!?]+/g) || [textToSummarize];
+        
+        const bullets = sentences
+            .slice(0, 3)
+            .filter(s => s.trim().length > 10)
+            .map(s => {
+                let bullet = s.trim();
+                // Clean up any leading spaces or newlines
+                bullet = bullet.replace(/^[\s\n]+/, '');
+                if (bullet.length > 130) bullet = bullet.substring(0, 127) + '...';
+                if (!bullet.startsWith('•')) bullet = '• ' + bullet;
+                return bullet;
+            });
+            
+        if (bullets.length === 0) {
+            if (titleText) {
+                return ['• ' + titleText, '• Read the full article for detailed information', '• Check original source for complete context'];
+            } else {
+                return ['• Summary unavailable', '• Try again later', '• Check original source'];
+            }
+        }
+        
+        if (bullets.length === 1) {
+            bullets.push('• Read the full article for detailed information');
+            bullets.push('• Check original source for complete context');
+        } else if (bullets.length === 2) {
+            bullets.push('• Read the full article for more details');
+        }
+        
+        return bullets.slice(0, 3);
+    };
+
     try {
         const { title, content, url } = req.body;
 
@@ -181,11 +219,11 @@ const summarizeArticle = async (req, res) => {
         const apiKey = process.env.SAMBANOVA_API_KEY;
 
         if (!apiKey) {
-            console.log('[Intel Feed] No SAMBANOVA_API_KEY configured');
+            console.log('[Intel Feed] No SAMBANOVA_API_KEY configured. Using fallback.');
             return res.json({
                 success: true,
                 data: {
-                    summary: ['• Summary unavailable', '• API key not configured', '• Check connection'],
+                    summary: generateFallbackSummary(title, content),
                     analyzedAt: new Date().toISOString()
                 }
             });
@@ -229,7 +267,7 @@ Article Content: ${content || 'Content not available - summarize based on title'
             return res.json({
                 success: true,
                 data: {
-                    summary: ['• Summary unavailable', '• Try again later', '• Check original source'],
+                    summary: generateFallbackSummary(title, content),
                     analyzedAt: new Date().toISOString()
                 }
             });
@@ -243,7 +281,7 @@ Article Content: ${content || 'Content not available - summarize based on title'
             return res.json({
                 success: true,
                 data: {
-                    summary: ['• Summary unavailable', '• Try again later', '• Check original source'],
+                    summary: generateFallbackSummary(title, content),
                     analyzedAt: new Date().toISOString()
                 }
             });
@@ -258,7 +296,7 @@ Article Content: ${content || 'Content not available - summarize based on title'
         return res.json({
             success: true,
             data: {
-                summary: bullets.length > 0 ? bullets : ['• Analysis unavailable', '• Try again later', '• Check original source'],
+                summary: bullets.length > 0 ? bullets : generateFallbackSummary(title, content),
                 analyzedAt: new Date().toISOString()
             }
         });
@@ -269,7 +307,7 @@ Article Content: ${content || 'Content not available - summarize based on title'
         return res.json({
             success: true,
             data: {
-                summary: ['• Summary unavailable', '• Try again later', '• Check connection'],
+                summary: generateFallbackSummary(req?.body?.title, req?.body?.content),
                 analyzedAt: new Date().toISOString()
             }
         });
