@@ -33,6 +33,51 @@ Score Guidelines:
 - 61-100: Appears factually accurate, well-sourced, and unbiased (Real)`;
 
 /**
+ * Fallback heuristic analysis if API is unavailable
+ */
+const analyzeFallback = (content) => {
+    let score = 50;
+    let reasoning = "Analysis based on structural heuristics (AI unavailable). ";
+    
+    const text = (content || '').toLowerCase();
+    
+    // Sensationalism markers
+    const sensationalWords = ['shocking', 'mind-blowing', 'unbelievable', "you won't believe", 'miracle', 'secret', 'banned', "they don't want you to know", 'exposed', 'hoax', 'click here'];
+    let sensationalCount = 0;
+    sensationalWords.forEach(word => {
+        if (text.includes(word)) sensationalCount++;
+    });
+    
+    // Credibility markers
+    const credibilityWords = ['according to', 'reported by', 'study', 'researchers', 'official', 'statement', 'data shows', 'percent', 'university', 'published in'];
+    let credibilityCount = 0;
+    credibilityWords.forEach(word => {
+        if (text.includes(word)) credibilityCount++;
+    });
+    
+    // Adjust score
+    score -= (sensationalCount * 12);
+    score += (credibilityCount * 8);
+    
+    // Bound score
+    score = Math.max(10, Math.min(95, score));
+    
+    // Generate verdict and reasoning
+    let verdict = 'Inconclusive';
+    if (score >= 65) {
+        verdict = 'Real';
+        reasoning += "Content appears to use objective language and cites sources or data.";
+    } else if (score <= 35) {
+        verdict = 'Fake';
+        reasoning += "Content contains multiple sensationalist markers or lacks credible sourcing patterns.";
+    } else {
+        reasoning += "Content has mixed credibility signals; unable to determine definitively without AI.";
+    }
+    
+    return { score, verdict, reasoning };
+};
+
+/**
  * Analyzes content using OpenRouter API
  * 
  * @param {string} content - The text or URL content to analyze
@@ -43,12 +88,8 @@ async function analyzeContent(content) {
         const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
-            console.log('[OpenRouter] No API key configured');
-            return {
-                score: 50,
-                verdict: 'Inconclusive',
-                reasoning: 'Analysis unavailable: AI service not configured.'
-            };
+            console.log('[OpenRouter] No API key configured. Using heuristic fallback.');
+            return analyzeFallback(content);
         }
 
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -80,11 +121,7 @@ async function analyzeContent(content) {
             const errorText = await response.text();
             console.error('[OpenRouter] API Error:', response.status, errorText);
             // Return fallback instead of throwing
-            return {
-                score: 50,
-                verdict: 'Inconclusive',
-                reasoning: 'Analysis unavailable due to service error. Please try again later.'
-            };
+            return analyzeFallback(content);
         }
 
         const data = await response.json();
@@ -122,13 +159,8 @@ async function analyzeContent(content) {
 
     } catch (error) {
         console.error('[OpenRouter] Error:', error);
-
         // Return a fallback response if parsing fails or other errors
-        return {
-            score: 50,
-            verdict: 'Inconclusive',
-            reasoning: 'Unable to complete analysis. Please try again with different content.'
-        };
+        return analyzeFallback(content);
     }
 }
 
