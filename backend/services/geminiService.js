@@ -40,10 +40,10 @@ Score Guidelines:
  */
 async function analyzeContent(content) {
     try {
-        const apiKey = process.env.SAMBANOVA_API_KEY;
+        const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
-            console.log('[SambaNova] No API key configured');
+            console.log('[OpenRouter] No API key configured');
             return {
                 score: 50,
                 verdict: 'Inconclusive',
@@ -51,14 +51,16 @@ async function analyzeContent(content) {
             };
         }
 
-        const response = await fetch('https://api.sambanova.ai/v1/chat/completions', {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:5173',
+                'X-Title': 'NewsLens'
             },
             body: JSON.stringify({
-                model: 'Meta-Llama-3.1-8B-Instruct',
+                model: 'meta-llama/llama-3.1-8b-instruct',
                 messages: [
                     {
                         role: 'system',
@@ -76,7 +78,7 @@ async function analyzeContent(content) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('[SambaNova] API Error:', response.status, errorText);
+            console.error('[OpenRouter] API Error:', response.status, errorText);
             // Return fallback instead of throwing
             return {
                 score: 50,
@@ -119,7 +121,7 @@ async function analyzeContent(content) {
         return analysisResult;
 
     } catch (error) {
-        console.error('[SambaNova] Error:', error);
+        console.error('[OpenRouter] Error:', error);
 
         // Return a fallback response if parsing fails or other errors
         return {

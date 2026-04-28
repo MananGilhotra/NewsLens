@@ -215,11 +215,11 @@ const summarizeArticle = async (req, res) => {
             });
         }
 
-        // Check if SambaNova API key is configured
-        const apiKey = process.env.SAMBANOVA_API_KEY;
+        // Check if OpenRouter API key is configured
+        const apiKey = process.env.OPENROUTER_API_KEY;
 
         if (!apiKey) {
-            console.log('[Intel Feed] No SAMBANOVA_API_KEY configured. Using fallback.');
+            console.log('[Intel Feed] No OPENROUTER_API_KEY configured. Using fallback.');
             return res.json({
                 success: true,
                 data: {
@@ -236,14 +236,16 @@ Format: Return ONLY 3 lines starting with "•" - no other text.
 Article Title: ${title}
 Article Content: ${content || 'Content not available - summarize based on title'}`;
 
-        const response = await fetch('https://api.sambanova.ai/v1/chat/completions', {
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'http://localhost:5173',
+                'X-Title': 'NewsLens'
             },
             body: JSON.stringify({
-                model: 'Meta-Llama-3.1-8B-Instruct',
+                model: 'meta-llama/llama-3.1-8b-instruct',
                 messages: [
                     {
                         role: 'system',
@@ -261,7 +263,7 @@ Article Content: ${content || 'Content not available - summarize based on title'
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('[Intel Feed] SambaNova API Error:', response.status, errorText);
+            console.error('[Intel Feed] OpenRouter API Error:', response.status, errorText);
 
             // Return fallback instead of throwing error
             return res.json({
