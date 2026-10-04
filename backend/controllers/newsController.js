@@ -1,324 +1,143 @@
 /**
- * News Controller - Global Intel Feed
- * 
- * Fetches news from NewsAPI with trust scoring based on source credibility
+ * News Controller - live feed with trust scoring and article summaries
  */
 
-// Source credibility tiers
-const SOURCE_TIERS = {
-    // Tier 1: Most trusted international news agencies (85-100)
-    HIGH_TIER: [
-        'Reuters', 'Associated Press', 'AP News', 'AFP', 'BBC News', 'BBC',
-        'The Guardian', 'The New York Times', 'The Washington Post', 'NPR',
-        'PBS', 'The Wall Street Journal', 'Financial Times', 'The Economist',
-        'Bloomberg', 'Al Jazeera English', 'Deutsche Welle', 'France 24',
-        'The Hindu', 'Times of India', 'NDTV', 'The Indian Express'
-    ],
+const crypto = require('crypto');
+const newsSources = require('../services/newsSources');
+const sourceCredibility = require('../services/sourceCredibility');
+const mlModel = require('../services/mlModel');
+const llm = require('../services/llmService');
+const { summarize, cleanText } = require('../services/summarizer');
+const { extractArticle } = require('../services/articleExtractor');
+const { TtlCache } = require('../utils/cache');
 
-    // Tier 2: Reputable regional/specialized sources (60-84)
-    MID_TIER: [
-        'CNN', 'ABC News', 'CBS News', 'NBC News', 'MSNBC', 'Sky News',
-        'USA Today', 'Los Angeles Times', 'Chicago Tribune', 'Axios',
-        'Politico', 'The Atlantic', 'Wired', 'Ars Technica', 'TechCrunch',
-        'The Verge', 'Business Insider', 'Forbes', 'Fortune', 'CNBC',
-        'Hindustan Times', 'India Today', 'News18', 'Scroll.in', 'The Wire'
-    ],
+const summaryCache = new TtlCache({ ttlMs: 24 * 60 * 60 * 1000, maxEntries: 1000 });
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-    // Tier 3: Tabloid/Biased/Sensational sources (0-40)
-    TABLOID_TIER: [
-        'Daily Mail', 'The Sun', 'New York Post', 'Daily Mirror', 'The Daily Star',
-        'Breitbart', 'InfoWars', 'The Gateway Pundit', 'OAN', 'Newsmax',
-        'BuzzFeed News', 'Huffington Post', 'Salon', 'Vox', 'Vice News',
-        'RT', 'Sputnik', 'Daily Express', 'Daily Record', 'Mirror Online'
-    ]
-};
+const getTrustTier = (score) => (score >= 70 ? 'VERIFIED' : score >= 45 ? 'MODERATE' : 'CAUTION');
 
 /**
- * Calculate trust score based on source name
+ * Trust = source reputation (when the outlet is known) blended with the ML model's read of the headline + blurb.
  */
-const calculateTrustScore = (sourceName) => {
-    if (!sourceName) return 50;
-
-    const normalizedName = sourceName.toLowerCase().trim();
-
-    // Check High Tier (85-100)
-    if (SOURCE_TIERS.HIGH_TIER.some(s => normalizedName.includes(s.toLowerCase()))) {
-        return 85 + Math.floor(Math.random() * 15); // 85-99
-    }
-
-    // Check Mid Tier (60-84)
-    if (SOURCE_TIERS.MID_TIER.some(s => normalizedName.includes(s.toLowerCase()))) {
-        return 60 + Math.floor(Math.random() * 24); // 60-83
-    }
-
-    // Check Tabloid Tier (15-40)
-    if (SOURCE_TIERS.TABLOID_TIER.some(s => normalizedName.includes(s.toLowerCase()))) {
-        return 15 + Math.floor(Math.random() * 25); // 15-39
-    }
-
-    // Unknown sources get a neutral score (45-65)
-    return 45 + Math.floor(Math.random() * 20);
-};
+function scoreArticle(article) {
+    const source = sourceCredibility.lookup({ url: article.url, name: article.source?.name });
+    const ml = mlModel.predict(`${article.title}. ${article.description || ''}`, { topCues: 3 });
+    const modelScore = ml ? ml.credibility : 50;
+    // Unknown outlets are capped below VERIFIED: the model alone cannot vouch for a source
+    const trustScore = Math.round(source ? 0.75 * source.score + 0.25 * modelScore : Math.min(69, 0.5 * modelScore + 0.5 * 55));
+    return {
+        ...article,
+        trustScore,
+        trustTier: getTrustTier(trustScore),
+        isTrusted: trustScore >= 70,
+        trust: {
+            source: source && { name: source.name, label: source.label, tier: source.tier, score: source.score },
+            model: ml && { score: ml.credibility, cues: ml.credibility < 50 ? ml.cues.fake : ml.cues.real }
+        }
+    };
+}
 
 /**
- * Get trust tier label
- */
-const getTrustTier = (score) => {
-    if (score >= 75) return 'VERIFIED';
-    if (score >= 50) return 'MODERATE';
-    return 'CAUTION';
-};
-
-/**
- * Fetch news from NewsAPI with trust scoring
+ * GET /api/news?q=&category=&page=1&pageSize=12
  */
 const fetchNews = async (req, res) => {
     try {
-        const {
-            q = 'technology OR world news',
-            category,
-            pageSize = 20,
-            page = 1,
-            sortBy = 'publishedAt',
-            language = 'en'
-        } = req.query;
-
-        const NEWS_API_KEY = process.env.NEWS_API_KEY;
-
-        if (!NEWS_API_KEY) {
-            return res.status(500).json({
-                success: false,
-                error: 'News API key not configured'
-            });
-        }
-
-        // Build NewsAPI URL
-        let apiUrl = `https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&pageSize=${pageSize}&page=${page}&sortBy=${sortBy}&language=${language}&apiKey=${NEWS_API_KEY}`;
-
-        // If category specified, use top-headlines endpoint instead
-        if (category) {
-            apiUrl = `https://newsapi.org/v2/top-headlines?category=${category}&pageSize=${pageSize}&page=${page}&language=${language}&apiKey=${NEWS_API_KEY}`;
-        }
-
-        console.log(`[Intel Feed] Fetching news: page ${page}, pageSize ${pageSize}`);
-
-        const response = await fetch(apiUrl);
-        const data = await response.json();
-
-        if (data.status !== 'ok') {
-            console.error('[Intel Feed] NewsAPI Error:', data.message);
-            return res.status(400).json({
-                success: false,
-                error: data.message || 'Failed to fetch news'
-            });
-        }
-
-        // Process articles with trust scoring
-        const processedArticles = data.articles
-            .filter(article => article.title && article.title !== '[Removed]')
-            .map((article, index) => {
-                const trustScore = calculateTrustScore(article.source?.name);
-                const trustTier = getTrustTier(trustScore);
-
-                return {
-                    id: `${article.source?.id || 'unknown'}-${Date.now()}-${index}`,
-                    title: article.title,
-                    description: article.description,
-                    content: article.content,
-                    url: article.url,
-                    urlToImage: article.urlToImage,
-                    publishedAt: article.publishedAt,
-                    source: {
-                        id: article.source?.id,
-                        name: article.source?.name
-                    },
-                    author: article.author,
-                    // Custom trust fields
-                    trustScore,
-                    trustTier,
-                    isTrusted: trustScore >= 70,
-                    isTableoid: trustScore < 40
-                };
-            });
-
-        console.log(`[Intel Feed] Processed ${processedArticles.length} articles`);
+        const page = clamp(parseInt(req.query.page, 10) || 1, 1, 50);
+        const pageSize = clamp(parseInt(req.query.pageSize, 10) || 12, 1, 50);
+        const result = await newsSources.getNews({
+            q: String(req.query.q || ''),
+            category: String(req.query.category || ''),
+            page,
+            pageSize
+        });
 
         return res.json({
             success: true,
             data: {
-                articles: processedArticles,
-                totalResults: data.totalResults,
-                page: parseInt(page),
-                pageSize: parseInt(pageSize),
-                hasMore: (page * pageSize) < data.totalResults
+                articles: result.articles.map(scoreArticle),
+                totalResults: result.totalResults,
+                page,
+                pageSize,
+                hasMore: result.hasMore,
+                provider: result.provider
             }
         });
-
     } catch (error) {
-        console.error('[Intel Feed] Error:', error);
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to fetch news feed'
-        });
+        console.error('[News] Error:', error);
+        return res.status(500).json({ success: false, error: 'Failed to fetch news feed' });
     }
 };
+
+async function llmSummary(title, text) {
+    const reply = await llm.chatJson([
+        {
+            role: 'system',
+            content: 'You are a precise news editor. Summarise articles faithfully - never add facts that are not in the text.'
+        },
+        {
+            role: 'user',
+            content: `Summarise this article in exactly 3 bullet points of at most 25 words each, most important first.
+Reply with ONLY JSON: {"bullets": ["...", "...", "..."]}
+
+Title: ${title || '(untitled)'}
+Article:
+"""
+${text.slice(0, 9000)}
+"""`
+        }
+    ], { maxTokens: 400, temperature: 0.2 });
+    const bullets = reply?.data?.bullets;
+    if (!Array.isArray(bullets)) return null;
+    const clean = bullets.map((b) => String(b).replace(/^[\s•\-*\d.)]+/, '').trim()).filter((b) => b.length > 3).slice(0, 3);
+    return clean.length ? { summary: clean, model: reply.model } : null;
+}
 
 /**
- * Summarize article using OpenRouter AI or fallback
+ * POST /api/news/summarize
+ * Body: { title, content, url }
+ * Uses the full article when the URL can be fetched, otherwise the provided snippet.
  */
 const summarizeArticle = async (req, res) => {
-    const generateFallbackSummary = (titleText, contentText) => {
-        let textToSummarize = contentText || titleText || '';
-        // Basic cleanup
-        textToSummarize = textToSummarize.replace(/<[^>]*>?/gm, '');
-        
-        // Split by sentences
-        const sentences = textToSummarize.match(/[^.!?]+[.!?]+/g) || [textToSummarize];
-        
-        const bullets = sentences
-            .slice(0, 3)
-            .filter(s => s.trim().length > 10)
-            .map(s => {
-                let bullet = s.trim();
-                // Clean up any leading spaces or newlines
-                bullet = bullet.replace(/^[\s\n]+/, '');
-                if (bullet.length > 130) bullet = bullet.substring(0, 127) + '...';
-                if (!bullet.startsWith('•')) bullet = '• ' + bullet;
-                return bullet;
-            });
-            
-        if (bullets.length === 0) {
-            if (titleText) {
-                return ['• ' + titleText, '• Read the full article for detailed information', '• Check original source for complete context'];
-            } else {
-                return ['• Summary unavailable', '• Try again later', '• Check original source'];
-            }
-        }
-        
-        if (bullets.length === 1) {
-            bullets.push('• Read the full article for detailed information');
-            bullets.push('• Check original source for complete context');
-        } else if (bullets.length === 2) {
-            bullets.push('• Read the full article for more details');
-        }
-        
-        return bullets.slice(0, 3);
-    };
+    const title = String(req.body?.title || '').trim();
+    const content = String(req.body?.content || '').trim();
+    const url = String(req.body?.url || '').trim();
+
+    if (!title && !content && !url) {
+        return res.status(400).json({ success: false, error: 'Please provide an article title, content or URL' });
+    }
 
     try {
-        const { title, content, url } = req.body;
-
-        if (!title && !content) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide article title or content'
-            });
-        }
-
-        // Check if OpenRouter API key is configured
-        const apiKey = process.env.OPENROUTER_API_KEY;
-
-        if (!apiKey) {
-            console.log('[Intel Feed] No OPENROUTER_API_KEY configured. Using fallback.');
-            return res.json({
-                success: true,
-                data: {
-                    summary: generateFallbackSummary(title, content),
-                    analyzedAt: new Date().toISOString()
-                }
-            });
-        }
-
-        const prompt = `You are an intelligence analyst. Summarize this news article in exactly 3 bullet points.
-Each bullet should be concise (max 15 words) and capture a key insight.
-Format: Return ONLY 3 lines starting with "•" - no other text.
-
-Article Title: ${title}
-Article Content: ${content || 'Content not available - summarize based on title'}`;
-
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': 'http://localhost:5173',
-                'X-Title': 'NewsLens'
-            },
-            body: JSON.stringify({
-                model: 'meta-llama/llama-3.1-8b-instruct',
-                messages: [
-                    {
-                        role: 'system',
-                        content: 'You are a helpful assistant that summarizes news articles.'
-                    },
-                    {
-                        role: 'user',
-                        content: prompt
+        const key = url || crypto.createHash('sha1').update(`${title}\n${content}`).digest('hex');
+        const data = await summaryCache.wrap(key, async () => {
+            let text = cleanText(content);
+            let basis = 'snippet';
+            if (url) {
+                try {
+                    const article = await extractArticle(url);
+                    if (article.text.length > text.length) {
+                        text = article.text;
+                        basis = 'full-article';
                     }
-                ],
-                temperature: 0.1,
-                max_tokens: 300
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Intel Feed] OpenRouter API Error:', response.status, errorText);
-
-            // Return fallback instead of throwing error
-            return res.json({
-                success: true,
-                data: {
-                    summary: generateFallbackSummary(title, content),
-                    analyzedAt: new Date().toISOString()
+                } catch (error) {
+                    console.log(`[Summarize] Using snippet - could not fetch article: ${error.message}`);
                 }
-            });
-        }
-
-        const data = await response.json();
-        const summary = data.choices[0]?.message?.content?.trim() || '';
-
-        // If still no summary, return fallback
-        if (!summary) {
-            return res.json({
-                success: true,
-                data: {
-                    summary: generateFallbackSummary(title, content),
-                    analyzedAt: new Date().toISOString()
-                }
-            });
-        }
-
-        const bullets = summary
-            .split('\n')
-            .filter(line => line.trim().startsWith('•'))
-            .map(line => line.trim())
-            .slice(0, 3);
-
-        return res.json({
-            success: true,
-            data: {
-                summary: bullets.length > 0 ? bullets : generateFallbackSummary(title, content),
-                analyzedAt: new Date().toISOString()
             }
+
+            if (text.length > 80) {
+                const fromLlm = await llmSummary(title, text);
+                if (fromLlm) return { ...fromLlm, engine: 'llm', basis };
+            }
+
+            const sentences = summarize(text, { title, maxSentences: 3 });
+            if (sentences.length) return { summary: sentences, engine: 'extractive', basis };
+            return { summary: [title || 'No summary available for this article.'], engine: 'extractive', basis: 'title' };
         });
 
+        return res.json({ success: true, data: { ...data, analyzedAt: new Date().toISOString() } });
     } catch (error) {
-        console.error('[Intel Feed] Summarize Error:', error);
-        // Return fallback response instead of 500 error
-        return res.json({
-            success: true,
-            data: {
-                summary: generateFallbackSummary(req?.body?.title, req?.body?.content),
-                analyzedAt: new Date().toISOString()
-            }
-        });
+        console.error('[Summarize] Error:', error);
+        return res.status(500).json({ success: false, error: 'Failed to summarize article' });
     }
 };
 
-module.exports = {
-    fetchNews,
-    summarizeArticle,
-    calculateTrustScore,
-    SOURCE_TIERS
-};
+module.exports = { fetchNews, summarizeArticle, scoreArticle };

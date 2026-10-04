@@ -6,3 +6,12 @@ node_modules/
 dist/
 build/
 coverage/
+
+# ML training (datasets are downloaded by ml/train_fake_news.py)
+ml/.venv/
+ml/data/
+__pycache__/
+*.pyc
+
+# Local editor and tool folders
+.claude/

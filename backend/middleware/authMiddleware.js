@@ -4,37 +4,50 @@
  */
 
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
+const config = require('../config');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'newslens_super_secret_key_2026';
+const readToken = (req) => {
+    const header = req.headers.authorization || '';
+    return header.startsWith('Bearer ') ? header.slice(7) : null;
+};
 
-const protect = async (req, res, next) => {
+const protect = (req, res, next) => {
+    const token = readToken(req);
+    if (!token) {
+        return res.status(401).json({ success: false, error: 'Access denied. No token provided.' });
+    }
     try {
-        let token;
-
-        // Check for Bearer token in header
-        if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-            token = req.headers.authorization.split(' ')[1];
-        }
-
-        if (!token) {
-            return res.status(401).json({
-                success: false,
-                error: 'Access denied. No token provided.'
-            });
-        }
-
-        // Verify token
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, config.jwtSecret);
         req.user = { id: decoded.id };
         next();
-
     } catch (error) {
-        console.error('[Auth Middleware] Token verification failed:', error.message);
-        return res.status(401).json({
-            success: false,
-            error: 'Invalid or expired token'
-        });
+        return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     }
 };
 
-module.exports = { protect };
+/** Attaches req.user when a valid token is sent, but never blocks the request. */
+const optionalAuth = (req, res, next) => {
+    const token = readToken(req);
+    if (token) {
+        try {
+            req.user = { id: jwt.verify(token, config.jwtSecret).id };
+        } catch {
+            // anonymous request
+        }
+    }
+    next();
+};
+
+const isDbReady = () => mongoose.connection.readyState === 1;
+
+/** Fails fast with a clear message instead of hanging when MongoDB is down. */
+const requireDb = (req, res, next) => {
+    if (isDbReady()) return next();
+    return res.status(503).json({
+        success: false,
+        error: 'Database unavailable. Start MongoDB locally or set MONGODB_URI in backend/.env.'
+    });
+};
+
+module.exports = { protect, optionalAuth, requireDb, isDbReady };

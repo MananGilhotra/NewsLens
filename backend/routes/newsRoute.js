@@ -8,26 +8,24 @@ const { fetchNews, summarizeArticle } = require('../controllers/newsController')
 
 /**
  * GET /api/news
- * Fetch news with trust scoring
- * 
+ * Fetch news with trust scoring (NewsAPI when configured, public RSS feeds otherwise)
+ *
  * Query params:
- *   q - Search query (default: 'technology OR world news')
- *   category - News category (business, technology, science, etc.)
- *   pageSize - Articles per page (default: 20, max: 100)
+ *   q - Search query (empty = top stories)
+ *   category - general, technology, business, science, health, entertainment, sports
+ *   pageSize - Articles per page (default: 12, max: 50)
  *   page - Page number (default: 1)
- *   sortBy - Sort order: publishedAt, relevancy, popularity
- *   language - Language code (default: en)
  */
 router.get('/', fetchNews);
 
 /**
  * POST /api/news/summarize
- * Get AI summary of an article
- * 
+ * Get a 3-point summary of an article
+ *
  * Body:
  *   title - Article title
- *   content - Article content
- *   url - Article URL (optional)
+ *   content - Article content or description
+ *   url - Article URL (optional, enables full-article summaries)
  */
 router.post('/summarize', summarizeArticle);
 

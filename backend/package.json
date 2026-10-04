@@ -1,19 +1,24 @@
 {
   "name": "newslens-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "NewsLens - AI Fake News & Content Verification Backend",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node --watch server.js",
+    "test:model": "node scripts/check-model-parity.js",
+    "check-db": "node test-db-connection.js",
+    "seed:demo": "node scripts/seed-demo-user.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "@mozilla/readability": "^0.6.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
+    "fast-xml-parser": "^5.11.2",
     "jsonwebtoken": "^9.0.3",
+    "linkedom": "^0.18.13",
     "mongoose": "^8.7.0"
   }
 }
