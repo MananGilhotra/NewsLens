@@ -1,140 +1,72 @@
 /**
- * LoginPage - No GSAP, CSS Animations Only
+ * LoginPage
  */
 
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { motion, useAnimationControls } from 'framer-motion';
+import { ArrowRight, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { errorMessage } from '../lib/api';
+import AuthLayout from './auth/AuthLayout';
+import FormField from './auth/FormField';
+import { useToast } from './ui/Toast';
 
-function LoginPage() {
+export default function LoginPage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { login, isAuthenticated } = useAuth();
-
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const controls = useAnimationControls();
+    const toast = useToast();
+    const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const [shake, setShake] = useState(false);
+    const redirectTo = location.state?.from || '/app';
 
     useEffect(() => {
-        if (isAuthenticated) {
-            navigate('/app');
-        }
-    }, [isAuthenticated, navigate]);
+        if (isAuthenticated) navigate(redirectTo, { replace: true });
+    }, [isAuthenticated, navigate, redirectTo]);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+    const update = (event) => {
+        setForm({ ...form, [event.target.name]: event.target.value });
         setError('');
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
         setLoading(true);
         setError('');
-
         try {
-            const result = await login(formData.email, formData.password);
-            if (result.success) {
-                navigate('/app');
-            } else {
-                setError(result.error || 'Login failed');
-                setShake(true);
-                setTimeout(() => setShake(false), 500);
-            }
+            const result = await login(form.email, form.password);
+            toast(`Welcome back${result.user?.name ? `, ${result.user.name.split(' ')[0]}` : ''}`, { tone: 'success' });
+            navigate(redirectTo, { replace: true });
         } catch (err) {
-            setError(err.response?.data?.error || 'Login failed');
-            setShake(true);
-            setTimeout(() => setShake(false), 500);
+            setError(errorMessage(err, 'Login failed'));
+            controls.start({ x: [0, -12, 10, -6, 4, 0], transition: { duration: 0.5 } });
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="min-h-screen bg-cyber-darker relative flex items-center justify-center px-4">
-            <div className="data-stream" />
-            <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-glow-cyan/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-1/3 right-1/4 w-72 h-72 bg-glow-purple/10 rounded-full blur-3xl" />
-
-            <div className={`relative z-10 w-full max-w-md animate-slide-up ${shake ? 'animate-shake' : ''}`}>
-                {/* Logo */}
-                <Link to="/" className="block text-center mb-8">
-                    <h1 className="font-display text-3xl font-bold">
-                        <span className="text-gradient-cyan">News</span>
-                        <span className="text-white">Lens</span>
-                    </h1>
-                </Link>
-
-                {/* Card */}
-                <div className="cyber-card p-8">
-                    <h2 className="font-display text-2xl text-white text-center mb-2">
-                        Welcome Back! 👋
-                    </h2>
-                    <p className="text-text-muted text-center text-sm mb-8">
-                        Log in to continue checking news
-                    </p>
-
-                    {error && (
-                        <div className="mb-6 p-4 border border-glow-red bg-glow-red/10 text-glow-red text-sm animate-fade-in">
-                            ⚠ {error}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSubmit}>
-                        <div className="mb-4">
-                            <label className="block text-text-secondary text-xs font-display mb-2 tracking-wider">
-                                Email
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                className="cyber-input"
-                                placeholder="you@example.com"
-                                required
-                            />
-                        </div>
-
-                        <div className="mb-6">
-                            <label className="block text-text-secondary text-xs font-display mb-2 tracking-wider">
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                className="cyber-input"
-                                placeholder="Your password"
-                                required
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full cyber-button disabled:opacity-50 transition-opacity duration-300"
-                        >
-                            {loading ? '⏳ Logging in...' : '🚀 Log In'}
-                        </button>
-                    </form>
-
-                    <p className="text-center text-text-muted text-sm mt-6">
-                        New here?{' '}
-                        <Link to="/signup" className="text-glow-cyan hover:underline">
-                            Create an account
-                        </Link>
-                    </p>
-                </div>
-
-                <p className="text-center mt-6">
-                    <Link to="/" className="text-text-muted text-sm hover:text-glow-cyan transition-colors duration-300">
-                        ← Back to home
-                    </Link>
-                </p>
-            </div>
-        </div>
+        <AuthLayout
+            title="Welcome back."
+            subtitle="Log in to keep reading between the lines."
+            footer={<>New to NewsLens? <Link to="/signup" className="text-lens link-underline">Create an account</Link></>}
+        >
+            <motion.form animate={controls} onSubmit={handleSubmit} className="space-y-4" noValidate>
+                {error && (
+                    <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} role="alert"
+                        className="flex items-start gap-3 rounded-2xl border border-fake/30 bg-fake/10 p-4 text-sm text-fake">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {error}
+                    </motion.div>
+                )}
+                <FormField label="Email" type="email" name="email" autoComplete="email" value={form.email} onChange={update} required />
+                <FormField label="Password" type="password" name="password" autoComplete="current-password" value={form.password} onChange={update} required />
+                <button type="submit" disabled={loading || !form.email || !form.password} className="btn-primary mt-2 w-full py-4 text-[0.95rem]">
+                    {loading ? <><Loader2 className="h-4 w-4 animate-spin" /> Logging in…</> : <>Log in <ArrowRight className="h-4 w-4" /></>}
+                </button>
+            </motion.form>
+        </AuthLayout>
     );
 }
-
-export default LoginPage;
