@@ -5,14 +5,13 @@
 
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const config = require('../config');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'newslens_super_secret_key_2026';
-const JWT_EXPIRE = '7d';
+const generateToken = (userId) => jwt.sign({ id: userId }, config.jwtSecret, { expiresIn: config.jwtExpire });
 
-// Generate JWT token
-const generateToken = (userId) => {
-    return jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
-};
+const publicUser = (user) => ({ id: user._id, name: user.name, email: user.email, createdAt: user.createdAt });
+
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
 
 /**
  * Register a new user
@@ -20,57 +19,35 @@ const generateToken = (userId) => {
  */
 const register = async (req, res) => {
     try {
-        const { name, email, password } = req.body;
+        const name = String(req.body.name || '').trim();
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || '');
 
-        // Validation
         if (!name || !email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide name, email and password'
-            });
+            return res.status(400).json({ success: false, error: 'Please provide name, email and password' });
         }
-
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return res.status(400).json({ success: false, error: 'Please enter a valid email address' });
+        }
         if (password.length < 6) {
-            return res.status(400).json({
-                success: false,
-                error: 'Password must be at least 6 characters'
-            });
+            return res.status(400).json({ success: false, error: 'Password must be at least 6 characters' });
+        }
+        if (await User.exists({ email })) {
+            return res.status(400).json({ success: false, error: 'Email already registered' });
         }
 
-        // Check if user exists
-        const existingUser = await User.findOne({ email });
-        if (existingUser) {
-            return res.status(400).json({
-                success: false,
-                error: 'Email already registered'
-            });
-        }
-
-        // Create user
         const user = await User.create({ name, email, password });
-
-        // Generate token
-        const token = generateToken(user._id);
-
-        res.status(201).json({
-            success: true,
-            data: {
-                token,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    email: user.email
-                }
-            }
-        });
-
+        res.status(201).json({ success: true, data: { token: generateToken(user._id), user: publicUser(user) } });
     } catch (error) {
+        if (error.name === 'ValidationError') {
+            const message = Object.values(error.errors)[0]?.message || 'Invalid details';
+            return res.status(400).json({ success: false, error: message });
+        }
+        if (error.code === 11000) {
+            return res.status(400).json({ success: false, error: 'Email already registered' });
+        }
         console.error('[Auth] Register error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Registration failed',
-            details: process.env.NODE_ENV === 'production' ? undefined : error.message
-        });
+        res.status(500).json({ success: false, error: 'Registration failed' });
     }
 };
 
@@ -80,55 +57,22 @@ const register = async (req, res) => {
  */
 const login = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const email = normalizeEmail(req.body.email);
+        const password = String(req.body.password || '');
 
-        // Validation
         if (!email || !password) {
-            return res.status(400).json({
-                success: false,
-                error: 'Please provide email and password'
-            });
+            return res.status(400).json({ success: false, error: 'Please provide email and password' });
         }
 
-        // Find user with password
         const user = await User.findOne({ email }).select('+password');
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid credentials'
-            });
+        if (!user || !(await user.comparePassword(password))) {
+            return res.status(401).json({ success: false, error: 'Invalid email or password' });
         }
 
-        // Check password
-        const isMatch = await user.comparePassword(password);
-        if (!isMatch) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid credentials'
-            });
-        }
-
-        // Generate token
-        const token = generateToken(user._id);
-
-        res.json({
-            success: true,
-            data: {
-                token,
-                user: {
-                    id: user._id,
-                    name: user.name,
-                    email: user.email
-                }
-            }
-        });
-
+        res.json({ success: true, data: { token: generateToken(user._id), user: publicUser(user) } });
     } catch (error) {
         console.error('[Auth] Login error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Login failed'
-        });
+        res.status(500).json({ success: false, error: 'Login failed' });
     }
 };
 
@@ -139,35 +83,14 @@ const login = async (req, res) => {
 const getProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
-
         if (!user) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
+            return res.status(404).json({ success: false, error: 'User not found' });
         }
-
-        res.json({
-            success: true,
-            data: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                createdAt: user.createdAt
-            }
-        });
-
+        res.json({ success: true, data: publicUser(user) });
     } catch (error) {
         console.error('[Auth] Get profile error:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to get profile'
-        });
+        res.status(500).json({ success: false, error: 'Failed to get profile' });
     }
 };
 
-module.exports = {
-    register,
-    login,
-    getProfile
-};
+module.exports = { register, login, getProfile };
